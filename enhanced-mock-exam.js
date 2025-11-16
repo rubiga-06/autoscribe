@@ -131,6 +131,13 @@ function startMockExam() {
     // Initialize speech recognition
     const speechInitialized = initSpeechRecognition();
     console.log('Speech recognition initialized:', speechInitialized);
+    try {
+        const indicator = document.querySelector('#voice-status .voice-indicator');
+        const isOn = indicator && indicator.textContent && indicator.textContent.toLowerCase().includes('on');
+        if (window.toggleVoiceMode && !isOn) {
+            window.toggleVoiceMode();
+        }
+    } catch(e) {}
 
     // Start timer
     startMockExamTimer();
@@ -140,16 +147,18 @@ function startMockExam() {
     loadMockQuestion(0);
     console.log('First question loaded');
 
-    // Speak welcome message using multilingual system
+    // Speak welcome only if user enabled voice reading
     const currentLang = localStorage.getItem('preferredLanguage') || 'en';
-    if (window.formatMessage) {
-        const welcomeMsg = window.formatMessage('welcome', {
-            duration: '10',
-            questions: '5'
-        });
-        speak(welcomeMsg);
-    } else {
-        speak('Mock exam started. You have 10 minutes to complete 5 questions. Each question is worth 2 marks. I will now read the first question.');
+    if (window.voiceReadingActive) {
+        if (window.formatMessage) {
+            const welcomeMsg = window.formatMessage('welcome', {
+                duration: '10',
+                questions: '5'
+            });
+            speak(welcomeMsg);
+        } else {
+            speak('Mock exam started. You have 10 minutes to complete 5 questions. Each question is worth 2 marks.');
+        }
     }
 }
 
@@ -230,8 +239,10 @@ function loadMockQuestion(index) {
         optionsContainer.appendChild(textInput);
     }
 
-    // Speak the question
-    speakQuestion(question);
+    // Speak the question only when voice reading is active
+    if (window.voiceReadingActive) {
+        speakQuestion(question);
+    }
 }
 
 // Speak Question
@@ -265,9 +276,9 @@ function selectOption(index) {
         }
     });
 
-    // Speak confirmation
+    // Speak confirmation (keep generic)
     const optionLetter = String.fromCharCode(65 + index);
-    speak(`Option ${optionLetter} selected. ${question.options[index]}`);
+    speak(`Option ${optionLetter} selected.`);
 }
 
 // Handle Voice Input
@@ -352,7 +363,7 @@ function nextQuestion() {
     if (currentMockExam.currentQuestionIndex < mockExamQuestions.length - 1) {
         loadMockQuestion(currentMockExam.currentQuestionIndex + 1);
     } else {
-        // Last question - show submit confirmation
+        // Last question - confirm then submit
         if (confirm('Are you sure you want to submit your exam?')) {
             submitMockExam();
         }
@@ -364,33 +375,15 @@ function submitMockExam() {
     clearInterval(currentMockExam.timerInterval);
     currentMockExam.isActive = false;
 
-    // Calculate score
-    let score = 0;
-    let totalMarks = 0;
-
-    mockExamQuestions.forEach(question => {
-        totalMarks += question.marks;
-        const userAnswer = currentMockExam.answers[question.id];
-
-        if (question.type === 'mcq') {
-            if (userAnswer === question.correctAnswer) {
-                score += question.marks;
-            }
-        } else {
-            // Simple text matching for demo
-            if (userAnswer && userAnswer.toLowerCase().includes(question.correctAnswer.toLowerCase())) {
-                score += question.marks;
-            }
+    try {
+        const currentUser = JSON.parse(localStorage.getItem('currentUser')) || {};
+        const exam = { name: 'Mock Exam', questions: mockExamQuestions };
+        if (window.generateAnswersPdf) {
+            window.generateAnswersPdf(exam, currentMockExam.answers, currentUser);
         }
-    });
+    } catch (e) { console.error('Mock PDF generation failed', e); }
 
-    const percentage = Math.round((score / totalMarks) * 100);
-
-    // Show results
-    const resultMessage = `Exam submitted! You scored ${score} out of ${totalMarks} marks. That's ${percentage} percent.`;
-    speak(resultMessage);
-
-    alert(resultMessage);
+    alert('Exam submitted!');
 
     // Return to dashboard
     endMockExam();
@@ -421,7 +414,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up voice button if it exists
     const voiceBtn = document.getElementById('mock-voice-btn');
     if (voiceBtn) {
-        voiceBtn.addEventListener('click', toggleVoiceInput);
+        voiceBtn.addEventListener('click', function() {
+            try { toggleVoiceMode(); } catch (e) { try { toggleVoiceInput(); } catch(_) {} }
+        });
     }
 
     // Set up navigation buttons

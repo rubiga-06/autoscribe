@@ -230,17 +230,19 @@ function loadExamQuestions(exam) {
     startExamTimer(exam.duration * 60);
 
     // Speak exam instructions using multilingual system
-    if (window.formatMessage) {
-        const welcomeMsg = window.formatMessage('welcome', {
-            duration: exam.duration,
-            questions: exam.questions.length
-        });
-        if (window.speak) { window.speak(welcomeMsg); }
-    } else if (window.speechSynthesis) {
-        const utterance = new SpeechSynthesisUtterance(
-            `Starting exam: ${exam.name}. You have ${exam.duration} minutes to complete ${exam.questions.length} questions. Good luck!`
-        );
-        window.speechSynthesis.speak(utterance);
+    if (window.voiceReadingActive) {
+        if (window.formatMessage) {
+            const welcomeMsg = window.formatMessage('welcome', {
+                duration: exam.duration,
+                questions: exam.questions.length
+            });
+            if (window.speak) { window.speak(welcomeMsg); }
+        } else if (window.speechSynthesis) {
+            const utterance = new SpeechSynthesisUtterance(
+                `Starting exam: ${exam.name}. You have ${exam.duration} minutes to complete ${exam.questions.length} questions. Good luck!`
+            );
+            window.speechSynthesis.speak(utterance);
+        }
     }
 }
 
@@ -310,35 +312,24 @@ function loadExamQuestion(index) {
     });
     try { console.debug('[Exam] Loaded question index', index); } catch(e) {}
 
-    // Speak question using multilingual system
-    // Cancel any ongoing speech to avoid overlap with other modules
-    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch(e) {} }
-    if (window.speak && window.formatMessage) {
-        let questionText = window.formatMessage('questionPrefix', {
-            number: index + 1,
-            total: exam.questions.length
-        }) + ' ' + question.text + '. ';
-        
-        if (question.options && question.options.length) {
-            questionText += window.formatMessage('optionsPrefix', {}) + ' ';
-            question.options.forEach((option, idx) => {
-                questionText += window.formatMessage('optionFormat', {
-                    letter: String.fromCharCode(65 + idx),
-                    text: option
-                }) + ' ';
-            });
+    if (window.voiceReadingActive) {
+        if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch(e) {} }
+        if (window.speak && window.formatMessage) {
+            let questionText = window.formatMessage('questionPrefix', {
+                number: index + 1,
+                total: exam.questions.length
+            }) + ' ' + question.text + '. ';
+            if (question.options && question.options.length) {
+                questionText += window.formatMessage('optionsPrefix', {}) + ' ';
+                question.options.forEach((option, idx) => {
+                    questionText += window.formatMessage('optionFormat', {
+                        letter: String.fromCharCode(65 + idx),
+                        text: option
+                    }) + ' ';
+                });
+            }
+            window.speak(questionText);
         }
-        window.speak(questionText);
-    } else if (window.speechSynthesis) {
-        let questionText = `Question ${index + 1}. ${question.text}. `;
-        if (question.options && question.options.length) {
-            questionText += 'The options are: ';
-            question.options.forEach((option, idx) => {
-                questionText += `Option ${String.fromCharCode(65 + idx)}, ${option}. `;
-            });
-        }
-        const utterance = new SpeechSynthesisUtterance(questionText);
-        window.speechSynthesis.speak(utterance);
     }
 }
 
@@ -356,6 +347,8 @@ function selectExamOption(index) {
             opt.classList.remove('selected');
         }
     });
+
+    
 }
 
 // Start exam timer
@@ -393,30 +386,9 @@ function submitCurrentExam() {
     const exam = window.currentExamState.exam;
     const answers = window.currentExamState.answers;
 
-    // Calculate score
-    let score = 0;
-    let totalMarks = 0;
-
-    exam.questions.forEach(question => {
-        totalMarks += question.marks || 2;
-        const userAnswer = answers[question.id];
-        if (userAnswer === question.correct) {
-            score += question.marks || 2;
-        }
-    });
-
-    const percentage = Math.round((score / totalMarks) * 100);
-
-    // Save submission
-    saveStudentSubmission(exam.id, currentUser.id, answers, `${score}/${totalMarks}`);
-
-    // Show result
-    alert(`Exam submitted!\n\nYour Score: ${score}/${totalMarks} (${percentage}%)`);
-    // Speak result and auto-logout
-    try {
-        const u = new SpeechSynthesisUtterance(`Exam submitted. Your score is ${score} out of ${totalMarks}, that is ${percentage} percent.`);
-        window.speechSynthesis.speak(u);
-    } catch(e) {}
+    saveStudentSubmission(exam.id, currentUser.id, answers, '');
+    try { generateAnswersPdf(exam, answers, currentUser); } catch(e) {}
+    alert('Exam submitted!');
 
     // Return to dashboard and logout automatically after reading result
     setTimeout(() => {
@@ -612,3 +584,61 @@ window.nextQuestion = nextQuestion;
 window.previousQuestion = previousQuestion;
 window.markForReview = markForReview;
 window.selectExamOption = selectExamOption;
+
+function generateAnswersPdf(exam, answers, user) {
+    try {
+        const lib = window.jspdf || window.jsPDF;
+        const jsPDF = lib && lib.jsPDF ? lib.jsPDF : lib;
+        if (!jsPDF) { alert('PDF export is not available.'); return; }
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        let y = 48;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text(`Exam Answers - ${exam.name}`, 40, y);
+        y += 22;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        const studentLine = `Student: ${(user && (user.name || ''))} ${(user && user.id) ? '(' + user.id + ')' : ''}`.trim();
+        if (studentLine) { doc.text(studentLine, 40, y); y += 16; }
+        doc.text(`Date: ${new Date().toLocaleString()}`, 40, y);
+        y += 24;
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const maxWidth = 530;
+        exam.questions.forEach((q, i) => {
+            const qHeader = `Q${i + 1}. ${q.text}`;
+            const qLines = doc.splitTextToSize(qHeader, maxWidth);
+            if (y + qLines.length * 14 > pageHeight - 40) { doc.addPage(); y = 48; }
+            doc.setFont('helvetica', 'bold');
+            doc.text(qLines, 40, y);
+            y += qLines.length * 14 + 6;
+            doc.setFont('helvetica', 'normal');
+            let ansText = '';
+            let ans = (q && 'id' in q) ? answers[q.id] : undefined;
+            if (ans === undefined && window.currentExamState && Array.isArray(window.currentExamState.answersArray)) {
+                ans = window.currentExamState.answersArray[i];
+            }
+            if (q.options && Array.isArray(q.options)) {
+                if (typeof ans === 'number') {
+                    const letter = String.fromCharCode(65 + ans);
+                    const opt = q.options[ans] || '';
+                    ansText = `Answer: ${letter} - ${opt}`;
+                } else if (typeof ans === 'string') {
+                    ansText = `Answer: ${ans}`;
+                } else {
+                    ansText = 'Answer: (not answered)';
+                }
+            } else {
+                ansText = `Answer: ${(ans !== undefined && ans !== null && String(ans).length) ? String(ans) : '(not answered)'}`;
+            }
+            const aLines = doc.splitTextToSize(ansText, maxWidth);
+            if (y + aLines.length * 14 > pageHeight - 40) { doc.addPage(); y = 48; }
+            doc.text(aLines, 60, y);
+            y += aLines.length * 14 + 12;
+        });
+        const safeName = (exam.name || 'exam').replace(/[^a-z0-9_\-]+/gi, '_');
+        const sid = user && user.id ? user.id : 'student';
+        doc.save(`answers_${safeName}_${sid}.pdf`);
+    } catch (e) {
+        console.error('PDF generation failed', e);
+    }
+}
