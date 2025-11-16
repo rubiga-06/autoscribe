@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Exam - Autoscribe</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Student Exam Specific Styles */
+        .exam-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            animation: fadeIn 0.8s ease-in-out;
+        }
+
+        .question-navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2rem 0;
+        }
+
+        .timer {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        /* Question Card */
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .marks {
+            background: linear-gradient(45deg, #6366f1, #4f46e5);
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        /* Voice Input Button */
+        .voice-btn {
+            margin-top: 1rem;
+            background: linear-gradient(45deg, #6366f1, #4f46e5);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .voice-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
+
+        /* Modal Enhancements */
+        .modal-content {
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <a href="index.html" class="logo">
+                <i class="fas fa-graduation-cap"></i>
+                <h1>Autoscribe</h1>
+            </a>
+            <div class="user-info">
+                <span id="studentName">Student</span>
+                <button class="btn btn-outline" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <main class="exam-container">
+            <div id="dashboardView">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Available Exams</h2>
+                    </div>
+                    <div id="examsList" class="exam-list">
+                        <!-- Exams will be loaded here -->
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">My Submissions</h2>
+                    </div>
+                    <div id="submissionsList">
+                        <!-- Submissions will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="examView" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 id="examTitle">Sample Mock Exam</h2>
+                        <div class="timer" id="examTimer">Time Left: 10:00</div>
+                    </div>
+                    
+                    <div id="examInstructions" class="card" style="margin-bottom: 1.5rem;">
+                        <h3>Instructions</h3>
+                        <p id="instructionsText">Upload a PDF question paper from the dashboard. After loading, click Start Exam. Use the voice input button to record your answer.</p>
+                        <div style="text-align: center; margin-top: 1.5rem;">
+                            <button id="startExamBtn" class="btn btn-primary">Start Exam</button>
+                        </div>
+                    </div>
+                    
+                    <div id="examQuestions" style="display: none;">
+                        <div class="question-navigation">
+                            <button id="prevBtn" class="btn btn-outline" disabled>
+                                <i class="fas fa-arrow-left"></i> Previous
+                            </button>
+                            <div>Question <span id="currentQuestion">1</span> of <span id="totalQuestions">5</span></div>
+                            <button id="nextBtn" class="btn btn-primary">
+                                Next <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="question-header">
+                                <h3>Question <span id="questionNumber">1</span></h3>
+                                <span class="marks" id="questionMarks">(2 marks)</span>
+                            </div>
+                            <p class="question-text" id="questionText">What is the capital of France?</p>
+                            
+                            <textarea id="answerInput" rows="3" placeholder="Your answer will appear here..." style="width: 100%; padding:0.5rem; font-size:1rem;"></textarea>
+                            <button class="voice-btn" id="voiceBtn"><i class="fas fa-microphone"></i> Speak Answer</button>
+                        </div>
+                        
+                        <div style="text-align: right; margin-top: 1.5rem;">
+                            <button id="submitExamBtn" class="btn btn-danger" style="display: none;">
+                                Submit Exam
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Submit Confirmation Modal -->
+    <div id="submitConfirmModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Submit Exam</h3>
+                <span class="close" onclick="document.getElementById('submitConfirmModal').style.display = 'none'">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to submit your exam? You won't be able to make changes after submission.</p>
+                <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                    <button class="btn btn-outline" id="cancelSubmitBtn">Cancel</button>
+                    <button class="btn btn-danger" id="confirmSubmitBtn">Submit Exam</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submission Details Modal -->
+    <div id="submissionDetailsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Exam Submission</h3>
+                <span class="close" onclick="document.getElementById('submissionDetailsModal').style.display = 'none'">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h4 id="submissionExamTitle">Exam Title</h4>
+                <p><strong>Subject:</strong> <span id="submissionSubject">General Knowledge</span></p>
+                <p><strong>Submitted on:</strong> <span id="submissionDate">2025-10-15</span></p>
+                <p><strong>Grade:</strong> <span id="submissionGrade" class="grade-pending">Pending</span></p>
+                
+                <div style="margin-top: 1.5rem;">
+                    <h4>Your Answers</h4>
+                    <div id="submissionAnswers">
+                        <!-- Answers will be loaded here -->
+                    </div>
+                </div>
+                
+                <div style="text-align: right; margin-top: 1.5rem;">
+                    <button class="btn btn-outline" onclick="document.getElementById('submissionDetailsModal').style.display = 'none'">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF.js for client-side PDF parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.7.107/pdf.min.js"></script>
+    <script>
+        // Questions will be loaded from uploaded PDF
+        let questions = [];
+
+        let currentQuestionIndex = 0;
+        let answers = Array(questions.length).fill("");
+
+        const examTitle = document.getElementById("examTitle");
+        const examQuestions = document.getElementById("examQuestions");
+        const startExamBtn = document.getElementById("startExamBtn");
+        const questionNumber = document.getElementById("questionNumber");
+        const questionText = document.getElementById("questionText");
+        const questionMarks = document.getElementById("questionMarks");
+        const answerInput = document.getElementById("answerInput");
+        const currentQuestionSpan = document.getElementById("currentQuestion");
+        const totalQuestionsSpan = document.getElementById("totalQuestions");
+        const prevBtn = document.getElementById("prevBtn");
+        const nextBtn = document.getElementById("nextBtn");
+        const submitExamBtn = document.getElementById("submitExamBtn");
+
+        totalQuestionsSpan.textContent = questions.length;
+
+        // PDF Upload UI (added to dashboard)
+        (function addPdfUploadUI(){
+            const dashboard = document.getElementById('dashboardView');
+            const uploadCard = document.createElement('div');
+            uploadCard.className = 'card';
+            uploadCard.innerHTML = `
+                <div class="card-header">
+                    <h2 class="card-title">Upload Question Paper (PDF)</h2>
+                </div>
+                <div class="card-body">
+                    <input type="file" id="pdfFile" accept="application/pdf" />
+                    <button id="loadPdfBtn" class="btn btn-primary" style="margin-left: 0.5rem;">Load Questions</button>
+                    <p style="margin-top:0.75rem; font-size:0.9rem; color:#555;">Supported formats: Numbered questions like 1), 2., 3 - each on a new line or paragraph.</p>
+                </div>`;
+            dashboard.insertBefore(uploadCard, dashboard.firstChild);
+        })();
+
+        // Configure PDF.js worker (needed for some environments)
+        if (window['pdfjsLib']) {
+            try {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.7.107/pdf.worker.min.js';
+            } catch (e) {}
+        }
+
+        async function extractTextFromPDF(file){
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            for (let p = 1; p <= pdf.numPages; p++) {
+                const page = await pdf.getPage(p);
+                const content = await page.getTextContent();
+                const strings = content.items.map(i => i.str);
+                fullText += '\n' + strings.join(' ');
+            }
+            return fullText;
+        }
+
+        function parseQuestionsFromText(text){
+            // Normalize whitespace
+            const cleaned = text.replace(/\r/g,'').replace(/\t/g,' ').replace(/\u00a0/g,' ').replace(/ +/g,' ');
+            // Split by common numbering patterns: 1)  2.  3 -  4]
+            const parts = cleaned.split(/(?:^|\n)\s*(\d{1,3}[\)\.\-\]])\s+/g);
+            // The split with capturing group will interleave separators; rebuild properly
+            const questionsList = [];
+            for (let i = 1; i < parts.length; i += 2) {
+                const numToken = parts[i];
+                const body = (parts[i+1] || '').trim();
+                if (!body) continue;
+                // Stop at next number token if present inside the body by a newline pattern
+                // For simplicity, take until double newline or keep entire chunk
+                const textOnly = body.split(/\n{2,}/)[0].trim();
+                if (textOnly.length > 0) {
+                    questionsList.push({ text: textOnly, marks: 2 });
+                }
+            }
+            // Fallback: if split failed, try splitting by newlines beginning with digits
+            if (questionsList.length === 0) {
+                const lines = cleaned.split(/\n+/);
+                let buffer = '';
+                lines.forEach(line => {
+                    if (/^\s*\d{1,3}[\)\.\-\]]\s+/.test(line)) {
+                        if (buffer.trim()) questionsList.push({ text: buffer.trim(), marks: 2 });
+                        buffer = line.replace(/^\s*\d{1,3}[\)\.\-\]]\s+/, '');
+                    } else {
+                        buffer += (buffer ? ' ' : '') + line.trim();
+                    }
+                });
+                if (buffer.trim()) questionsList.push({ text: buffer.trim(), marks: 2 });
+            }
+            return questionsList;
+        }
+
+        async function loadQuestionsFromPdf(file){
+            const text = await extractTextFromPDF(file);
+            const parsed = parseQuestionsFromText(text);
+            if (!parsed || parsed.length === 0) {
+                alert('Could not detect questions in the PDF. Ensure they are numbered (e.g., 1), 2., 3 -)');
+                return;
+            }
+            questions = parsed;
+            answers = Array(questions.length).fill("");
+            totalQuestionsSpan.textContent = questions.length;
+            document.getElementById('examTitle').textContent = (file.name ? file.name.replace(/\.pdf$/i,'') : 'Uploaded Exam');
+            // Switch to exam view and show instructions
+            document.getElementById('dashboardView').style.display = 'none';
+            document.getElementById('examView').style.display = 'block';
+            document.getElementById('examInstructions').style.display = 'block';
+            document.getElementById('examQuestions').style.display = 'none';
+        }
+
+        // Wire upload button
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'loadPdfBtn') {
+                const input = document.getElementById('pdfFile');
+                const file = input && input.files && input.files[0];
+                if (!file) { alert('Please choose a PDF file first.'); return; }
+                if (!/\.pdf$/i.test(file.name)) { alert('Please select a PDF file.'); return; }
+                loadQuestionsFromPdf(file);
+            }
+        });
+
+        function loadQuestion(index) {
+            const q = questions[index];
+            questionNumber.textContent = index + 1;
+            questionText.textContent = q.text;
+            questionMarks.textContent = `(${q.marks} marks)`;
+            answerInput.value = answers[index];
+            currentQuestionSpan.textContent = index + 1;
+
+            prevBtn.disabled = index === 0;
+            nextBtn.textContent = (index === questions.length - 1) ? "Finish" : "Next";
+            if (typeof window.speakQuestionAndListen === 'function' && startExamBtn.style.display === 'none') {
+                window.speakQuestionAndListen();
+            }
+        }
+
+        startExamBtn.addEventListener("click", () => {
+            if (!questions || questions.length === 0) {
+                alert("Please upload a PDF and load questions first from the dashboard.");
+                return;
+            }
+            examQuestions.style.display = "block";
+            startExamBtn.style.display = "none";
+            loadQuestion(currentQuestionIndex);
+            submitExamBtn.style.display = "inline-block";
+            startTimer(600); // 10 minutes
+        });
+
+        prevBtn.addEventListener("click", () => {
+            answers[currentQuestionIndex] = answerInput.value;
+            if (currentQuestionIndex > 0) currentQuestionIndex--;
+            loadQuestion(currentQuestionIndex);
+        });
+
+        nextBtn.addEventListener("click", () => {
+            answers[currentQuestionIndex] = answerInput.value;
+            if (currentQuestionIndex < questions.length - 1) {
+                currentQuestionIndex++;
+                loadQuestion(currentQuestionIndex);
+            } else {
+                document.getElementById("submitConfirmModal").style.display = "block";
+            }
+        });
+
+        submitExamBtn.addEventListener("click", () => {
+            document.getElementById("submitConfirmModal").style.display = "block";
+        });
+
+        document.getElementById("confirmSubmitBtn").addEventListener("click", () => {
+            answers[currentQuestionIndex] = answerInput.value;
+            document.getElementById("submitConfirmModal").style.display = "none";
+            document.getElementById("examView").style.display = "none";
+            document.getElementById("dashboardView").style.display = "block";
+
+            const submissionDiv = document.getElementById("submissionAnswers");
+            submissionDiv.innerHTML = "";
+            function escapeHTML(s){
+                return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+            }
+            questions.forEach((q, idx) => {
+                const div = document.createElement("div");
+                div.innerHTML = `<strong>Q${idx+1}:</strong> ${escapeHTML(q.text)}<br><strong>Your Answer:</strong> ${escapeHTML(answers[idx])}`;
+                div.style.marginBottom = "1rem";
+                submissionDiv.appendChild(div);
+            });
+
+            document.getElementById("submissionDetailsModal").style.display = "block";
+        });
+
+        document.getElementById("cancelSubmitBtn").addEventListener("click", () => {
+            document.getElementById("submitConfirmModal").style.display = "none";
+        });
+
+        // Timer
+        let timerInterval;
+        function startTimer(duration) {
+            let timer = duration, minutes, seconds;
+            timerInterval = setInterval(() => {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+                document.getElementById("examTimer").textContent = `Time Left: ${minutes}:${seconds}`;
+                if (--timer < 0) {
+                    clearInterval(timerInterval);
+                    alert("Time's up! Submitting exam.");
+                    submitExamBtn.click();
+                }
+            }, 1000);
+        }
+
+        // Voice Input
+        const voiceBtn = document.getElementById("voiceBtn");
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            const langPref = (localStorage.getItem('preferredLanguage') || 'en').toLowerCase();
+            const langMap = { en: 'en-US', hi: 'hi-IN', ta: 'ta-IN' };
+            recognition.lang = langMap[langPref] || 'en-US';
+
+            function speak(text){
+                try {
+                    const u = new SpeechSynthesisUtterance(text);
+                    u.lang = recognition.lang;
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(u);
+                } catch(e) {}
+            }
+
+            // Expose helper to speak the current question, then start listening for the answer
+            window.speakQuestionAndListen = function() {
+                try {
+                    const txt = (questionText && questionText.textContent) || '';
+                    const u = new SpeechSynthesisUtterance(txt);
+                    u.lang = recognition.lang;
+                    try { window.speechSynthesis.cancel(); } catch(e) {}
+                    u.onend = () => { try { recognition.start(); voiceBtn.textContent = "Listening..."; } catch(e) {} };
+                    window.speechSynthesis.speak(u);
+                } catch (e) {
+                    try { recognition.start(); voiceBtn.textContent = "Listening..."; } catch(_) {}
+                }
+            }
+
+            function handleVoiceCommand(lower, rawTextForAnswerPlacement) {
+                const isExamStarted = examQuestions.style.display !== 'none' && startExamBtn.style.display === 'none';
+                const canStart = startExamBtn.style.display !== 'none';
+
+                const text = lower.trim();
+
+                if (
+                    text.includes('start exam') ||
+                    text.includes('begin exam') ||
+                    text === 'start' ||
+                    text === 'begin' ||
+                    text.includes('start test')
+                ) {
+                    if (canStart) { startExamBtn.click(); speak('Exam started'); }
+                    return true;
+                }
+
+                if (
+                    text.includes('next question') ||
+                    text === 'next' ||
+                    text.includes('go to next')
+                ) {
+                    if (isExamStarted) { nextBtn.click(); speak('Next question'); }
+                    return true;
+                }
+
+                if (
+                    text.includes('previous question') ||
+                    text === 'previous' ||
+                    text === 'back' ||
+                    text.includes('go to previous')
+                ) {
+                    if (isExamStarted) { prevBtn.click(); speak('Previous question'); }
+                    return true;
+                }
+
+                if (
+                    text.includes('submit exam') ||
+                    text === 'submit' ||
+                    text === 'finish'
+                ) {
+                    if (isExamStarted) { submitExamBtn.click(); speak('Ready to submit'); }
+                    return true;
+                }
+
+                // Option selection commands: "option d", "choose b", "select 3", etc.
+                // Works only when exam is started
+                if (isExamStarted) {
+                    const optionMatch = text.match(/^(?:option|answer|choose|select)\s+([a-d]|[1-9])/);
+                    if (optionMatch) {
+                        let token = optionMatch[1];
+                        // Map digits 1-4 to A-D if applicable
+                        if (/^[1-9]$/.test(token)) {
+                            const num = parseInt(token, 10);
+                            if (num >= 1 && num <= 4) {
+                                token = String.fromCharCode('A'.charCodeAt(0) + (num - 1));
+                            }
+                        } else {
+                            token = token.toUpperCase();
+                        }
+                        answerInput.value = token;
+                        answers[currentQuestionIndex] = answerInput.value;
+                        speak(`Recorded option ${token}`);
+                        // Auto-advance to next question after brief delay
+                        setTimeout(() => {
+                            if (currentQuestionIndex < questions.length - 1) {
+                                nextBtn.click();
+                            } else {
+                                document.getElementById("submitConfirmModal").style.display = "block";
+                            }
+                        }, 150);
+                        return true;
+                    }
+
+                    // Hands-free dictation: "answer Paris" -> sets answer text and stays or moves next
+                    const freeAnswerMatch = text.match(/^answer\s+(.+)/);
+                    if (freeAnswerMatch) {
+                        // Prefer original casing if provided
+                        const original = rawTextForAnswerPlacement || freeAnswerMatch[1];
+                        // If raw transcript starts with 'answer ', strip only that prefix to keep casing for the rest
+                        const originalStripped = original.replace(/^\s*answer\s+/i, '');
+                        answerInput.value = originalStripped;
+                        answers[currentQuestionIndex] = answerInput.value;
+                        speak('Recorded answer');
+                        // Auto-advance similar to option selection
+                        setTimeout(() => {
+                            if (currentQuestionIndex < questions.length - 1) {
+                                nextBtn.click();
+                            } else {
+                                document.getElementById("submitConfirmModal").style.display = "block";
+                            }
+                        }, 150);
+                        return true;
+                    }
+
+                    if (text === 'read question' || text === 'repeat question') {
+                        speak(questionText.textContent || '');
+                        return true;
+                    }
+                    if (text === 'read answer' || text === 'repeat answer') {
+                        speak(answerInput.value || 'No answer yet');
+                        return true;
+                    }
+                    if (text === 'clear answer' || text === 'delete answer' || text === 'erase answer') {
+                        answerInput.value = '';
+                        answers[currentQuestionIndex] = '';
+                        speak('Answer cleared');
+                        return true;
+                    }
+                    if (text === 'delete last word' || text === 'remove last word') {
+                        const parts = answerInput.value.trim().split(/\s+/);
+                        parts.pop();
+                        answerInput.value = parts.join(' ');
+                        answers[currentQuestionIndex] = answerInput.value;
+                        speak('Last word deleted');
+                        return true;
+                    }
+                    const appendMatch = text.match(/^append\s+(.+)/);
+                    if (appendMatch) {
+                        const addText = (rawTextForAnswerPlacement || appendMatch[1]).replace(/^\s*append\s+/i, '');
+                        answerInput.value = (answerInput.value ? answerInput.value + ' ' : '') + addText;
+                        answers[currentQuestionIndex] = answerInput.value;
+                        speak('Appended');
+                        return true;
+                    }
+                    const setMatch = text.match(/^(?:set answer to|set to)\s+(.+)/);
+                    if (setMatch) {
+                        const newText = (rawTextForAnswerPlacement || setMatch[1]).replace(/^\s*(?:set answer to|set to)\s+/i, '');
+                        answerInput.value = newText;
+                        answers[currentQuestionIndex] = answerInput.value;
+                        speak('Answer updated');
+                        return true;
+                    }
+                    const replaceMatch = text.match(/^replace\s+(.+)\s+with\s+(.+)/);
+                    if (replaceMatch) {
+                        const fromRaw = replaceMatch[1];
+                        const toRaw = replaceMatch[2];
+                        const current = answerInput.value;
+                        const pattern = new RegExp(fromRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                        answerInput.value = current.replace(pattern, toRaw);
+                        answers[currentQuestionIndex] = answerInput.value;
+                        speak('Replaced');
+                        return true;
+                    }
+                }
+
+                // Not a command: treat as dictated answer if provided a raw text
+                if (rawTextForAnswerPlacement) {
+                    answerInput.value = rawTextForAnswerPlacement;
+                }
+                return false;
+            }
+
+            // Global continuous command recognition (voice control)
+            let commandRecognition;
+            try {
+                commandRecognition = new SpeechRecognition();
+                commandRecognition.continuous = true;
+                commandRecognition.interimResults = false;
+                commandRecognition.lang = recognition.lang;
+
+                // Start listening after first user interaction to satisfy browser mic policies
+                const initVoiceControlOnce = () => {
+                    try { commandRecognition.start(); } catch (e) {}
+                    document.body.removeEventListener('click', initVoiceControlOnce);
+                    document.body.removeEventListener('keydown', initVoiceControlOnce);
+                };
+                document.body.addEventListener('click', initVoiceControlOnce);
+                document.body.addEventListener('keydown', initVoiceControlOnce);
+
+                commandRecognition.onresult = (event) => {
+                    // Process the latest final result
+                    const res = event.results[event.results.length - 1];
+                    if (res && res.isFinal) {
+                        const transcript = res[0].transcript || '';
+                        const lower = transcript.toLowerCase();
+                        handleVoiceCommand(lower, transcript);
+                    }
+                };
+                commandRecognition.onerror = () => { /* keep silent to avoid UI noise */ };
+                commandRecognition.onend = () => {
+                    // Auto-restart to remain always-on for commands
+                    try { commandRecognition.start(); } catch (e) {}
+                };
+            } catch (e) {
+                // If global recognition fails, we still have the mic button flow.
+            }
+
+            voiceBtn.addEventListener("click", () => {
+                try { recognition.start(); } catch (e) {}
+                voiceBtn.textContent = "Listening...";
+            });
+
+            recognition.onresult = (event) => {
+                const speechResult = event.results[0][0].transcript;
+                const lower = speechResult.trim().toLowerCase();
+                // Try commands first; if none, place as answer text
+                handleVoiceCommand(lower, speechResult);
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i> Speak Answer';
+            };
+
+            recognition.onerror = (event) => {
+                console.error(event.error);
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i> Speak Answer';
+            };
+
+            recognition.onend = () => {
+                // Ensure UI resets even if there was no speech
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i> Speak Answer';
+            };
+        } else {
+            voiceBtn.disabled = true;
+            voiceBtn.textContent = "Voice Input Not Supported";
+        }
+    </script>
+</body>
+</html>
