@@ -115,6 +115,7 @@ let currentLanguage = 'en';
 let recognition = null;
 let synthesis = window.speechSynthesis;
 let isVoiceEnabled = false;
+let isSpeakingNow = false; // prevent recognition from hearing our own TTS
 
 // Initialize multilingual voice system
 function initMultilingualVoice(language = 'en') {
@@ -141,8 +142,8 @@ function initMultilingualVoice(language = 'en') {
         };
         
         recognition.onend = function() {
-            if (isVoiceEnabled) {
-                // Restart recognition if voice mode is still enabled
+            // Only auto-restart if not currently speaking via TTS
+            if (isVoiceEnabled && !isSpeakingNow) {
                 try {
                     recognition.start();
                 } catch (e) {
@@ -186,19 +187,32 @@ function changeExamLanguage(language) {
 // Speak text in current language
 function speak(text, callback) {
     if (synthesis.speaking) {
-        synthesis.cancel();
+        try { synthesis.cancel(); } catch(e) {}
     }
-    
+
+    // Pause recognition while TTS is speaking to avoid echoing commands
+    const shouldManageRecognition = !!(recognition && isVoiceEnabled);
+    if (shouldManageRecognition) {
+        isSpeakingNow = true;
+        try { recognition.stop(); } catch(e) {}
+    }
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = LANGUAGES[currentLanguage].code;
     utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.volume = 1;
-    
-    if (callback) {
-        utterance.onend = callback;
-    }
-    
+
+    const userCallback = typeof callback === 'function' ? callback : null;
+    utterance.onend = () => {
+        // Resume recognition if voice mode is enabled
+        if (shouldManageRecognition) {
+            isSpeakingNow = false;
+            try { recognition.start(); } catch(e) {}
+        }
+        if (userCallback) userCallback();
+    };
+
     synthesis.speak(utterance);
 }
 
